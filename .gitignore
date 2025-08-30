@@ -1,0 +1,19 @@
+# Build output
+output/
+*.a
+*.o
+*.so
+
+# Build cache
+build/
+tmp/
+
+# Docker
+.docker/
+
+# Logs
+*.log
+
+# OS files
+.DS_Store
+Thumbs.db

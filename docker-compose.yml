@@ -1,0 +1,19 @@
+version: '3.8'
+
+services:
+  tor-builder:
+    build: .
+    container_name: tor-static-builder
+    volumes:
+      # Mount output directory to persist build artifacts
+      - ./output:/output
+      # Optional: mount build cache to speed up rebuilds
+      - tor-build-cache:/build
+    environment:
+      - BUILD_DIR=/build
+      - OUTPUT_DIR=/output
+
+volumes:
+  # Named volume for build cache (optional)
+  tor-build-cache:
+    driver: local
