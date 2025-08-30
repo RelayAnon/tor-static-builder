@@ -125,10 +125,10 @@ cd tor
 # Build Tor
 make -j$(nproc)
 
-# Combine all static libraries into libtor.a
+# Combine all static libraries into libtor.a (excluding test libraries)
 log_info "Creating combined libtor.a..."
 cd src
-find . -name '*.a' -exec ar -x {} \;
+find . -name '*.a' ! -name '*-testing.a' -exec ar -x {} \;
 ar -rcs ../libtor.a *.o
 rm -f *.o
 cd ..

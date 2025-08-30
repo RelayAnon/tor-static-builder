@@ -91,7 +91,7 @@ rebuild-tor:
 	make -j$$(nproc)
 	@echo "Creating combined libtor.a..."
 	@cd $(BUILD_DIR)/tor-static/tor/src && \
-	find . -name '*.a' -print0 | xargs -0 ar -x && \
+	find . -name '*.a' ! -name '*-testing.a' -print0 | xargs -0 ar -x && \
 	ar -rcs ../libtor.a *.o && \
 	rm *.o
 	@echo "Copying to output..."
