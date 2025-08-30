@@ -9,8 +9,16 @@ echo "Tor Static Builder for Go Embedding"
 echo "======================================"
 
 # Configuration
-BUILD_DIR="${BUILD_DIR:-/build}"
-OUTPUT_DIR="${OUTPUT_DIR:-/output}"
+# Detect if running in Docker container
+if [ -f /.dockerenv ]; then
+    # Running in Docker
+    BUILD_DIR="${BUILD_DIR:-/build}"
+    OUTPUT_DIR="${OUTPUT_DIR:-/output}"
+else
+    # Running on host system
+    BUILD_DIR="${BUILD_DIR:-$HOME/tor-build}"
+    OUTPUT_DIR="${OUTPUT_DIR:-$(pwd)/output}"
+fi
 TOR_STATIC_REPO="https://github.com/cretz/tor-static.git"
 LIBCAP_VERSION="2.69"
 LIBCAP_URL="https://git.kernel.org/pub/scm/libs/libcap/libcap.git/snapshot/libcap-${LIBCAP_VERSION}.tar.gz"
@@ -36,6 +44,8 @@ log_error() {
 # Create directories
 mkdir -p "$BUILD_DIR"
 mkdir -p "$OUTPUT_DIR"
+mkdir -p "$OUTPUT_DIR/lib"
+mkdir -p "$OUTPUT_DIR/include"
 
 cd "$BUILD_DIR"
 
@@ -105,6 +115,7 @@ cd tor
     --disable-system-torrc \
     --disable-module-relay \
     --disable-module-dirauth \
+    --disable-systemd \
     --disable-zstd \
     --disable-lzma \
     --with-libevent-dir="$BUILD_DIR/tor-static/libevent/dist" \
@@ -117,7 +128,7 @@ make -j$(nproc)
 # Combine all static libraries into libtor.a
 log_info "Creating combined libtor.a..."
 cd src
-find . -name '*.a' -print0 | xargs -0 ar -x
+find . -name '*.a' -exec ar -x {} \;
 ar -rcs ../libtor.a *.o
 rm -f *.o
 cd ..
