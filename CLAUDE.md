@@ -45,11 +45,21 @@ These paths use Go's build tags to automatically select the correct architecture
 ```bash
 make build              # Build all static libraries for native architecture
 make build-docker       # Build using Docker (reproducible)
-./build-tor-static.sh --arch amd64   # Build for specific architecture
+
+# Local builds for specific architecture
+./build-tor-static.sh --arch amd64   # Build for amd64
 ./build-tor-static.sh --arch arm64   # Cross-compile for ARM64
+
+# Docker builds for specific architecture
+ARCH=amd64 docker-compose up         # Build amd64 in Docker
+ARCH=arm64 docker-compose up         # Build arm64 in Docker (cross-compilation)
 ```
 
-First build takes 15-20 minutes; subsequent builds are faster. Build artifacts are cached in `~/tor-build/<arch>/` by default.
+First build takes 15-20 minutes; subsequent builds are faster.
+
+**Output locations:**
+- Local builds: `./output/<arch>/` (build cache in `~/tor-build/<arch>/`)
+- Docker builds: `./output/<arch>/` (build cache in Docker volume)
 
 ### Testing
 ```bash

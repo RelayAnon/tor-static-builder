@@ -89,8 +89,12 @@ If you prefer manual control:
 ./build-tor-static.sh --arch amd64
 ./build-tor-static.sh --arch arm64
 
-# Docker build (for reproducibility)
+# Docker build (for reproducibility, default: amd64)
 docker-compose up
+
+# Docker build for specific architecture
+ARCH=amd64 docker-compose up
+ARCH=arm64 docker-compose up
 
 # Custom directories (architecture will be appended automatically)
 export BUILD_DIR=/tmp/my-tor-build
@@ -250,6 +254,19 @@ The build script supports both amd64 (x86_64) and arm64 (aarch64) architectures:
 
 # Install cross-compilation tools if needed (Ubuntu/Debian):
 sudo apt-get install gcc-aarch64-linux-gnu g++-aarch64-linux-gnu
+```
+
+#### Using Docker for Cross-compilation
+
+Docker is the easiest way to cross-compile since all tools are pre-installed:
+
+```bash
+# Build for ARM64 using Docker (cross-compilation tools included)
+ARCH=arm64 docker-compose up
+
+# Build for both architectures
+ARCH=amd64 docker-compose up
+ARCH=arm64 docker-compose up
 ```
 
 Output will be placed in `./output/amd64/` or `./output/arm64/` respectively.

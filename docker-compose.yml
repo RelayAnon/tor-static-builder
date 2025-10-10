@@ -6,12 +6,17 @@ services:
     container_name: tor-static-builder
     volumes:
       # Mount output directory to persist build artifacts
+      # Build script creates arch-specific subdirectories (e.g., output/amd64/)
       - ./output:/output
       # Optional: mount build cache to speed up rebuilds
       - tor-build-cache:/build
     environment:
+      # Build and output directories (architecture is appended automatically)
       - BUILD_DIR=/build
       - OUTPUT_DIR=/output
+      # Target architecture: amd64 (default) or arm64
+      # Set via: ARCH=arm64 docker-compose up
+      - ARCH=${ARCH:-amd64}
 
 volumes:
   # Named volume for build cache (optional)

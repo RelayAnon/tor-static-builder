@@ -5,6 +5,8 @@ FROM ubuntu:22.04
 ENV DEBIAN_FRONTEND=noninteractive
 
 # Install build dependencies
+# Note: We build all libraries from source, but keep some -dev packages
+# as they may be needed during the build process
 RUN apt-get update && apt-get install -y \
     build-essential \
     automake \
@@ -16,11 +18,10 @@ RUN apt-get update && apt-get install -y \
     curl \
     python3 \
     python3-dev \
-    libssl-dev \
-    libevent-dev \
-    zlib1g-dev \
-    libcap-dev \
     ca-certificates \
+    # Cross-compilation tools for ARM64
+    gcc-aarch64-linux-gnu \
+    g++-aarch64-linux-gnu \
     && rm -rf /var/lib/apt/lists/*
 
 # Set working directory
@@ -33,8 +34,11 @@ COPY build-tor-static.sh /build/
 RUN chmod +x /build/build-tor-static.sh
 
 # Set environment variables for build
+# Note: The build script will append /$ARCH to these paths automatically
+# (e.g., /build/amd64 or /build/arm64)
 ENV BUILD_DIR=/build
 ENV OUTPUT_DIR=/output
+ENV ARCH=amd64
 
 # Create output directory
 RUN mkdir -p /output
