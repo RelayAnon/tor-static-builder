@@ -13,7 +13,8 @@ See [README-GO.md](README-GO.md) for Go module documentation.
 
 ```bash
 make all          # Build libraries + test examples (recommended)
-make build        # Build Tor static libraries only
+make build        # Build Tor static libraries
+make rebuild-tor  # Rebuild only Tor (after dependency build)
 make test         # Build Go test programs
 make run-basic    # Run basic embedded Tor example
 make info         # Show build status and library sizes
@@ -81,68 +82,110 @@ make run-basic
 If you prefer manual control:
 
 ```bash
-# Local build (default, uses your system)
+# Local build (default, uses your system, builds for native architecture)
 ./build-tor-static.sh
+
+# Build for specific architecture
+./build-tor-static.sh --arch amd64
+./build-tor-static.sh --arch arm64
 
 # Docker build (for reproducibility)
 docker-compose up
 
-# Custom directories
+# Custom directories (architecture will be appended automatically)
 export BUILD_DIR=/tmp/my-tor-build
 export OUTPUT_DIR=/path/to/output
 make build
 ```
 
+Note: The architecture (amd64 or arm64) is automatically appended to both BUILD_DIR and OUTPUT_DIR.
+
 ## Directory Structure
 
 The build process uses two main directories:
 
-- **Build directory** (`~/tor-build/`): Temporary build files and source code
-- **Output directory** (`./output/`): Final static libraries and headers
+- **Build directory** (`~/tor-build/<arch>/`): Temporary build files and source code
+- **Output directory** (`./output/<arch>/`): Final static libraries and headers
 
-After a successful build, you'll find in `./output/`:
+After a successful build, you'll find architecture-specific outputs in `./output/amd64/` or `./output/arm64/`:
 
 ```
 output/
-├── lib/
-│   ├── libtor.a       # Combined Tor static library (25MB)
-│   ├── libssl.a       # OpenSSL SSL (1MB)
-│   ├── libcrypto.a    # OpenSSL Crypto (5.5MB)
-│   ├── libevent.a     # Libevent (2.2MB)
-│   ├── libz.a         # Zlib (150KB)
-│   └── libcap.a       # Linux capabilities (58KB)
-├── include/
-│   └── tor_api.h      # Tor API header
-└── build-info.txt     # Build information and versions
+├── amd64/                # x86_64 / amd64 build outputs
+│   ├── lib/
+│   │   ├── libtor.a       # Combined Tor static library (25MB)
+│   │   ├── libssl.a       # OpenSSL SSL (1MB)
+│   │   ├── libcrypto.a    # OpenSSL Crypto (5.5MB)
+│   │   ├── libevent.a     # Libevent (2.2MB)
+│   │   ├── libz.a         # Zlib (150KB)
+│   │   └── libcap.a       # Linux capabilities (58KB)
+│   ├── include/
+│   │   └── tor_api.h      # Tor API header
+│   └── build-info.txt     # Build information and versions
+└── arm64/                # aarch64 / arm64 build outputs (if built)
+    └── ... (same structure as amd64)
 ```
 
 ## Using in Your Go Project
 
-### 1. Copy the process.go template
+### Option 1: Use as a Go Module (Recommended)
 
-Copy `templates/process.go` to your project (e.g., `cmd/embedded/tor-0.4.8/process.go`)
+```go
+import "github.com/RelayAnon/tor-static-builder/embed"
 
-### 2. Update the CGO paths
+// Use the embedded Tor
+creator := embed.GetProcessCreator()
+```
 
-Edit the CGO directives in process.go to point to your output directory:
+### Option 2: Copy the Libraries
+
+1. Build the libraries with `make build` (builds for native architecture by default)
+2. The libraries will be in `./output/amd64/` or `./output/arm64/` after building
+3. See our working examples for how to use them:
+   - **Basic example**: [examples/basic/main.go](examples/basic/main.go) - Simple Tor client
+   - **Onion service**: [examples/onion-service/main.go](examples/onion-service/main.go) - Hidden service with persistent keys
+
+   Both examples use the embed package which references [embed/tor048/process.go](embed/tor048/process.go) for the CGO configuration.
+
+4. Create a process.go file in your project with CGO directives pointing to where you built them:
 
 ```go
 /*
-#cgo CFLAGS: -I/path/to/output/include
-#cgo LDFLAGS: -L/path/to/output/lib -ltor -levent -lz -lssl -lcrypto -lcap
+// For amd64 builds
+#cgo amd64 CFLAGS: -I${SRCDIR}/../../tor-static-builder/output/amd64/include
+#cgo amd64 LDFLAGS: -L${SRCDIR}/../../tor-static-builder/output/amd64/lib -ltor -levent -lz -lssl -lcrypto -lcap
+
+// For arm64 builds
+#cgo arm64 CFLAGS: -I${SRCDIR}/../../tor-static-builder/output/arm64/include
+#cgo arm64 LDFLAGS: -L${SRCDIR}/../../tor-static-builder/output/arm64/lib -ltor -levent -lz -lssl -lcrypto -lcap
+
+// Common linker flags
 #cgo LDFLAGS: -lm -lpthread -ldl -static-libgcc
 */
 import "C"
 ```
 
-### 3. Use build tags
+Or if you copy the architecture-specific output directory to your project (e.g., `tor-libs/amd64/`):
 
-Build your Go binary with the embedded tag:
+```go
+/*
+#cgo amd64 CFLAGS: -I${SRCDIR}/tor-libs/amd64/include
+#cgo amd64 LDFLAGS: -L${SRCDIR}/tor-libs/amd64/lib -ltor -levent -lz -lssl -lcrypto -lcap
+
+#cgo arm64 CFLAGS: -I${SRCDIR}/tor-libs/arm64/include
+#cgo arm64 LDFLAGS: -L${SRCDIR}/tor-libs/arm64/lib -ltor -levent -lz -lssl -lcrypto -lcap
+
+#cgo LDFLAGS: -lm -lpthread -ldl -static-libgcc
+*/
+import "C"
+```
+
+Note: `${SRCDIR}` in the CGO directives is automatically set by Go to the directory containing the source file.
+
+5. Build your Go binary with CGO enabled:
 
 ```bash
-CGO_ENABLED=1 go build -tags embedded \
-    -ldflags "-linkmode external -extldflags '-static'" \
-    -o myapp .
+CGO_ENABLED=1 go build -ldflags "-linkmode external -extldflags '-static'" -o myapp .
 ```
 
 ## Requirements
@@ -172,8 +215,6 @@ The complete build process takes approximately:
 ### "Using 'getaddrinfo' in statically linked applications" warnings
 These warnings are expected with glibc. The binary will still work. These functions will use the system's resolver at runtime.
 
-### Build fails with "libcap not found"
-The build script automatically downloads and builds libcap-2.69 from kernel.org source. No system packages are required - everything is built from source.
 
 ### Out of disk space
 The build requires about 2GB of space:
@@ -198,7 +239,20 @@ cd ../..
 
 ### Cross-compilation
 
-For ARM or other architectures, modify the configure flags in `build-tor-static.sh`.
+The build script supports both amd64 (x86_64) and arm64 (aarch64) architectures:
+
+```bash
+# Build for amd64 (default)
+./build-tor-static.sh --arch amd64
+
+# Build for arm64 (requires cross-compilation tools on non-ARM systems)
+./build-tor-static.sh --arch arm64
+
+# Install cross-compilation tools if needed (Ubuntu/Debian):
+sudo apt-get install gcc-aarch64-linux-gnu g++-aarch64-linux-gnu
+```
+
+Output will be placed in `./output/amd64/` or `./output/arm64/` respectively.
 
 ## License
 

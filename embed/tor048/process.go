@@ -12,14 +12,19 @@ import (
 )
 
 /*
-// These paths assume the libraries are built and placed in the output directory
-// relative to the module root. Update these if your structure differs.
-#cgo CFLAGS: -I${SRCDIR}/../../output/include
-#cgo LDFLAGS: -L${SRCDIR}/../../output/lib -ltor
-#cgo LDFLAGS: -L${SRCDIR}/../../output/lib -levent
-#cgo LDFLAGS: -L${SRCDIR}/../../output/lib -lz
-#cgo LDFLAGS: -L${SRCDIR}/../../output/lib -lssl -lcrypto
-#cgo LDFLAGS: -L${SRCDIR}/../../output/lib -lcap
+// These paths point to architecture-specific output directories.
+// The build system places libraries in output/amd64/ or output/arm64/
+// based on the target architecture.
+
+// AMD64 / x86_64 architecture
+#cgo amd64 CFLAGS: -I${SRCDIR}/../../output/amd64/include
+#cgo amd64 LDFLAGS: -L${SRCDIR}/../../output/amd64/lib -ltor -levent -lz -lssl -lcrypto -lcap
+
+// ARM64 / aarch64 architecture
+#cgo arm64 CFLAGS: -I${SRCDIR}/../../output/arm64/include
+#cgo arm64 LDFLAGS: -L${SRCDIR}/../../output/arm64/lib -ltor -levent -lz -lssl -lcrypto -lcap
+
+// Platform-specific linker flags
 #cgo windows LDFLAGS: -lws2_32 -lcrypt32 -lgdi32 -liphlpapi -Wl,-Bstatic -lpthread
 #cgo !windows LDFLAGS: -lm -lpthread -ldl -static-libgcc
 

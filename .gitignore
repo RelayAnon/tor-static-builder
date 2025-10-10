@@ -17,3 +17,10 @@ tmp/
 # OS files
 .DS_Store
 Thumbs.db
+
+# Example binaries and tor data
+examples/basic/basic
+examples/basic/test-basic
+examples/onion-service/onion-service
+examples/onion-service/test-onion
+examples/onion-service/tor-data/
