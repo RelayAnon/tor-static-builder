@@ -82,7 +82,7 @@ make run-basic
 If you prefer manual control:
 
 ```bash
-# Local build (default, uses your system, builds for native architecture)
+# Non-Docker build (default, uses your system, builds for native architecture)
 ./build-tor-static.sh
 
 # Build for specific architecture
@@ -210,8 +210,8 @@ A specialized build script is provided for building Tor libraries for Android de
 ./build-tor-android.sh --arch arm64 --api 21
 
 # Or use convenient Makefile targets
-make build-android                      # Build locally (requires NDK)
-make build-android-docker               # Build using Docker (no NDK needed locally!)
+make build-android                      # Non-Docker build (requires NDK)
+make build-android-docker               # Docker build (no NDK needed!)
 ```
 
 ### Docker Build for Android (Easiest Method)
@@ -237,7 +237,7 @@ make shell-android
 
 **For Docker builds:** No requirements! Docker image includes everything.
 
-**For local builds:** The script requires the Android NDK to be installed:
+**For non-Docker builds:** The script requires the Android NDK to be installed:
 
 ```bash
 # Option 1: Set ANDROID_NDK_HOME environment variable
@@ -288,7 +288,7 @@ gomobile bind -target=android/arm64 ...
 - Docker Compose (optional)
 - ~2GB disk space
 
-### For Local Build
+### For Non-Docker Build
 - Ubuntu 22.04 or similar Linux distribution
 - Basic build tools: gcc, g++, make
 - Autotools: automake, autoconf, libtool
@@ -296,9 +296,9 @@ gomobile bind -target=android/arm64 ...
 - ~2GB disk space
 - **No library packages needed!** All libraries (OpenSSL, libevent, zlib, libcap) are built from source
 
-### For Android Build
+### For Android Build (Non-Docker)
 - Android NDK (r21 or later recommended)
-- All standard build tools (same as local build)
+- All standard build tools (same as non-Docker build)
 - ~2GB disk space
 - NDK installed in standard location or ANDROID_NDK_HOME set
 

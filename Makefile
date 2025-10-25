@@ -45,10 +45,10 @@ help:
 # Build everything
 all: build test
 
-# Default build uses local system
+# Default build (non-Docker)
 build: build-local
 
-# Build on local system (default)
+# Non-Docker build (default)
 build-local: install-deps
 	@echo "Building Tor static libraries locally..."
 	@echo "Using BUILD_DIR=$(BUILD_DIR)"
@@ -65,7 +65,7 @@ build-docker:
 	@echo "Build complete! Check ./output/ for results"
 	@$(MAKE) check
 
-# Build Android libraries on local system
+# Build Android libraries (non-Docker)
 build-android:
 	@echo "Building Tor static libraries for Android..."
 	@if [ -z "$$ANDROID_NDK_HOME" ] && [ ! -d "$$HOME/Android/Sdk/ndk" ]; then \

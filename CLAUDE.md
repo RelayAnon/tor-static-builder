@@ -47,7 +47,7 @@ These paths use Go's build tags to automatically select the correct architecture
 make build              # Build all static libraries for native architecture
 make build-docker       # Build using Docker (reproducible)
 
-# Local builds for specific architecture
+# Non-Docker builds for specific architecture
 ./build-tor-static.sh --arch amd64   # Build for amd64
 ./build-tor-static.sh --arch arm64   # Cross-compile for ARM64
 
@@ -59,7 +59,7 @@ ARCH=arm64 docker-compose up         # Build arm64 in Docker (cross-compilation)
 ### Building Tor Libraries (Android)
 ```bash
 # Build for Android using Makefile (simplest)
-make build-android                              # Local build (requires NDK)
+make build-android                              # Non-Docker build (requires NDK)
 make build-android-docker                       # Docker build (no NDK needed!)
 
 # Build for Android directly with script (requires Android NDK)
@@ -80,13 +80,13 @@ make shell-android
 
 **Android Build Requirements:**
 - **Docker builds:** No requirements - NDK included in Docker image
-- **Local builds:** Android NDK must be installed and `ANDROID_NDK_HOME` set, or NDK in `~/Android/Sdk/ndk/`
+- **Non-Docker builds:** Android NDK must be installed and `ANDROID_NDK_HOME` set, or NDK in `~/Android/Sdk/ndk/`
 - All standard Linux build tools (gcc, make, autotools, etc.)
 
 First build takes 15-20 minutes; subsequent builds are faster.
 
 **Output locations:**
-- Local builds: `./output/<arch>/` or `./output/android-<arch>/` (build cache in `~/tor-build/`)
+- Non-Docker builds: `./output/<arch>/` or `./output/android-<arch>/` (build cache in `~/tor-build/`)
 - Docker builds: `./output/<arch>/` or `./output/android-<arch>/` (build cache in Docker volume)
 
 ### Testing
@@ -149,13 +149,14 @@ Android build artifacts are placed in `~/tor-build/android-<arch>/` by default.
 ### Architecture-Specific Build Paths
 
 **Linux builds** (build-tor-static.sh):
-- **Local builds**: `~/tor-build/amd64/` or `~/tor-build/arm64/`
+- **Non-Docker builds**: `~/tor-build/amd64/` or `~/tor-build/arm64/`
 - **Output**: `./output/amd64/` or `./output/arm64/`
 - **Docker builds**: `/build/amd64/` and `/output/amd64/` (or arm64)
 
 **Android builds** (build-tor-android.sh):
-- **Local builds**: `~/tor-build/android-<arch>/` (e.g., `~/tor-build/android-arm64/`)
+- **Non-Docker builds**: `~/tor-build/android-<arch>/` (e.g., `~/tor-build/android-arm64/`)
 - **Output**: `./output/android-<arch>/` (e.g., `./output/android-arm64/`)
+- **Docker builds**: `/build/android-<arch>/` and `/output/android-<arch>/`
 - Supported architectures: arm64, arm, x86, x86_64
 
 ### Static Library Combination
@@ -214,9 +215,9 @@ When using this module in external projects, you must:
 
 If you want to copy the libraries elsewhere, create your own `process.go` file with custom CGO paths pointing to your library location.
 
-### Docker vs Local Builds
+### Docker vs Non-Docker Builds
 - Docker builds use `/build/<arch>/` and `/output/<arch>/`
-- Local builds use `~/tor-build/<arch>/` and `./output/<arch>/`
+- Non-Docker builds use `~/tor-build/<arch>/` and `./output/<arch>/`
 - Set `BUILD_DIR` and `OUTPUT_DIR` environment variables to override (architecture is still appended)
 
 ## Android-Specific Details
@@ -238,10 +239,12 @@ The Android build script is a specialized version that:
 5. **Additional linker flags**: Android builds need `-lm -llog` instead of `-lpthread -ldl`
 
 ### Android NDK Detection
-The script auto-detects the NDK in this order:
+**For non-Docker builds**, the script auto-detects the NDK in this order:
 1. `$ANDROID_NDK_HOME` environment variable
 2. `~/Android/Sdk/ndk/` (finds latest version automatically)
 3. Exits with error if NDK not found
+
+**For Docker builds**, the NDK is pre-installed in the Docker image at `/opt/android-ndk` (NDK r26d LTS).
 
 ### Using Android Libraries
 To use the Android libraries with gomobile:
