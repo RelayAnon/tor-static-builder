@@ -115,7 +115,7 @@ After a successful build, you'll find architecture-specific outputs in `./output
 
 ```
 output/
-├── amd64/                # x86_64 / amd64 build outputs
+├── amd64/                 # x86_64 / amd64 build outputs
 │   ├── lib/
 │   │   ├── libtor.a       # Combined Tor static library (25MB)
 │   │   ├── libssl.a       # OpenSSL SSL (1MB)
@@ -126,7 +126,7 @@ output/
 │   ├── include/
 │   │   └── tor_api.h      # Tor API header
 │   └── build-info.txt     # Build information and versions
-└── arm64/                # aarch64 / arm64 build outputs (if built)
+└── arm64/                 # aarch64 / arm64 build outputs (if built)
     └── ... (same structure as amd64)
 ```
 
@@ -201,17 +201,17 @@ A specialized build script is provided for building Tor libraries for Android de
 ./build-tor-android.sh
 
 # Build for specific Android architecture
-./build-tor-android.sh --arch arm64    # ARM64 (most Android devices)
-./build-tor-android.sh --arch arm      # ARMv7 (older devices)
-./build-tor-android.sh --arch x86      # x86 (emulators)
-./build-tor-android.sh --arch x86_64   # x86_64 (emulators)
+./build-tor-android.sh --arch arm64      # ARM64 (most Android devices)
+./build-tor-android.sh --arch arm        # ARMv7 (older devices)
+./build-tor-android.sh --arch x86        # x86 (emulators)
+./build-tor-android.sh --arch x86_64     # x86_64 (emulators)
 
 # Specify Android API level (default: 21)
 ./build-tor-android.sh --arch arm64 --api 21
 
 # Or use convenient Makefile targets
-make build-android                      # Non-Docker build (requires NDK)
-make build-android-docker               # Docker build (no NDK needed!)
+make build-android                       # Non-Docker build (requires NDK)
+make build-android-docker                # Docker build (no NDK needed!)
 ```
 
 ### Docker Build for Android (Easiest Method)
@@ -253,19 +253,19 @@ Android builds produce architecture-specific outputs in separate directories:
 
 ```
 output/
-├── android-arm64/        # Android ARM64 build
+├── android-arm64/         # Android ARM64 build
 │   ├── lib/
-│   │   ├── libtor.a      # Combined Tor static library
-│   │   ├── libssl.a      # OpenSSL SSL
-│   │   ├── libcrypto.a   # OpenSSL Crypto
-│   │   ├── libevent.a    # Libevent
-│   │   └── libz.a        # Zlib (no libcap for Android)
+│   │   ├── libtor.a       # Combined Tor static library
+│   │   ├── libssl.a       # OpenSSL SSL
+│   │   ├── libcrypto.a    # OpenSSL Crypto
+│   │   ├── libevent.a     # Libevent
+│   │   └── libz.a         # Zlib (no libcap for Android)
 │   ├── include/
 │   │   └── tor_api.h
 │   └── build-info.txt
-├── android-arm/          # Android ARMv7 (if built)
-├── android-x86/          # Android x86 (if built)
-└── android-x86_64/       # Android x86_64 (if built)
+├── android-arm/           # Android ARMv7 (if built)
+├── android-x86/           # Android x86 (if built)
+└── android-x86_64/        # Android x86_64 (if built)
 ```
 
 **Note:** Android builds do NOT include `libcap` as Android does not use Linux capabilities in the same way.
