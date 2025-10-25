@@ -1,0 +1,56 @@
+# Dockerfile for building static Tor libraries for Android
+FROM ubuntu:22.04
+
+# Prevent interactive prompts during package installation
+ENV DEBIAN_FRONTEND=noninteractive
+
+# Install build dependencies
+RUN apt-get update && apt-get install -y \
+    build-essential \
+    automake \
+    autoconf \
+    libtool \
+    pkg-config \
+    git \
+    wget \
+    curl \
+    unzip \
+    python3 \
+    python3-dev \
+    ca-certificates \
+    && rm -rf /var/lib/apt/lists/*
+
+# Install Android NDK
+# Using NDK r26d (LTS version)
+ENV ANDROID_NDK_VERSION=r26d
+ENV ANDROID_NDK_HOME=/opt/android-ndk
+RUN cd /opt && \
+    wget -q https://dl.google.com/android/repository/android-ndk-${ANDROID_NDK_VERSION}-linux.zip && \
+    unzip -q android-ndk-${ANDROID_NDK_VERSION}-linux.zip && \
+    mv android-ndk-${ANDROID_NDK_VERSION} android-ndk && \
+    rm android-ndk-${ANDROID_NDK_VERSION}-linux.zip
+
+# Add NDK to PATH
+ENV PATH="${ANDROID_NDK_HOME}/toolchains/llvm/prebuilt/linux-x86_64/bin:${PATH}"
+
+# Set working directory
+WORKDIR /build
+
+# Copy build script
+COPY build-tor-android.sh /build/
+
+# Make script executable
+RUN chmod +x /build/build-tor-android.sh
+
+# Set environment variables for build
+# Note: The build script will append /android-$ARCH to these paths automatically
+# (e.g., /build/android-arm64)
+ENV BUILD_DIR=/build
+ENV OUTPUT_DIR=/output
+ENV ARCH=arm64
+
+# Create output directory
+RUN mkdir -p /output
+
+# Default command runs the build script
+CMD ["/build/build-tor-android.sh"]

@@ -192,6 +192,95 @@ Note: `${SRCDIR}` in the CGO directives is automatically set by Go to the direct
 CGO_ENABLED=1 go build -ldflags "-linkmode external -extldflags '-static'" -o myapp .
 ```
 
+## Building for Android
+
+A specialized build script is provided for building Tor libraries for Android devices and gomobile applications:
+
+```bash
+# Build for Android ARM64 (default, most common)
+./build-tor-android.sh
+
+# Build for specific Android architecture
+./build-tor-android.sh --arch arm64    # ARM64 (most Android devices)
+./build-tor-android.sh --arch arm      # ARMv7 (older devices)
+./build-tor-android.sh --arch x86      # x86 (emulators)
+./build-tor-android.sh --arch x86_64   # x86_64 (emulators)
+
+# Specify Android API level (default: 21)
+./build-tor-android.sh --arch arm64 --api 21
+
+# Or use convenient Makefile targets
+make build-android                      # Build locally (requires NDK)
+make build-android-docker               # Build using Docker (no NDK needed locally!)
+```
+
+### Docker Build for Android (Easiest Method)
+
+The easiest way to build for Android is using Docker, which includes the Android NDK:
+
+```bash
+# Build for Android ARM64 using Docker (recommended)
+make build-android-docker
+
+# Or specify architecture and API level with docker-compose
+ARCH=arm64 docker-compose up --build android-builder
+ARCH=arm ANDROID_API=23 docker-compose up --build android-builder
+ARCH=x86_64 docker-compose up --build android-builder
+
+# Interactive shell for debugging
+make shell-android
+```
+
+**No local NDK installation required when using Docker!**
+
+### Android Build Requirements
+
+**For Docker builds:** No requirements! Docker image includes everything.
+
+**For local builds:** The script requires the Android NDK to be installed:
+
+```bash
+# Option 1: Set ANDROID_NDK_HOME environment variable
+export ANDROID_NDK_HOME=/path/to/android-ndk
+
+# Option 2: Install NDK in standard location
+# The script will auto-detect: ~/Android/Sdk/ndk/{version}
+```
+
+### Android Output Structure
+
+Android builds produce architecture-specific outputs in separate directories:
+
+```
+output/
+├── android-arm64/        # Android ARM64 build
+│   ├── lib/
+│   │   ├── libtor.a      # Combined Tor static library
+│   │   ├── libssl.a      # OpenSSL SSL
+│   │   ├── libcrypto.a   # OpenSSL Crypto
+│   │   ├── libevent.a    # Libevent
+│   │   └── libz.a        # Zlib (no libcap for Android)
+│   ├── include/
+│   │   └── tor_api.h
+│   └── build-info.txt
+├── android-arm/          # Android ARMv7 (if built)
+├── android-x86/          # Android x86 (if built)
+└── android-x86_64/       # Android x86_64 (if built)
+```
+
+**Note:** Android builds do NOT include `libcap` as Android does not use Linux capabilities in the same way.
+
+### Using Android Libraries with gomobile
+
+```bash
+# Set CGO flags for Android build
+export CGO_CFLAGS="-I$(pwd)/output/android-arm64/include"
+export CGO_LDFLAGS="-L$(pwd)/output/android-arm64/lib -ltor -lssl -lcrypto -levent -lz -lm -llog"
+
+# Build your gomobile library
+gomobile bind -target=android/arm64 ...
+```
+
 ## Requirements
 
 ### For Docker Build
@@ -206,6 +295,12 @@ CGO_ENABLED=1 go build -ldflags "-linkmode external -extldflags '-static'" -o my
 - pkg-config, git, wget
 - ~2GB disk space
 - **No library packages needed!** All libraries (OpenSSL, libevent, zlib, libcap) are built from source
+
+### For Android Build
+- Android NDK (r21 or later recommended)
+- All standard build tools (same as local build)
+- ~2GB disk space
+- NDK installed in standard location or ANDROID_NDK_HOME set
 
 ## Build Time
 

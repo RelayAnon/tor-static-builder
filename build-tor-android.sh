@@ -9,7 +9,7 @@ echo "Tor Static Builder for Android"
 echo "======================================"
 
 # Configuration
-ANDROID_API=21
+ANDROID_API="${ANDROID_API:-21}"
 ARCH="${ARCH:-arm64}"
 
 # Parse command line arguments

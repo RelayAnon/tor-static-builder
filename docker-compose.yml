@@ -18,7 +18,31 @@ services:
       # Set via: ARCH=arm64 docker-compose up
       - ARCH=${ARCH:-amd64}
 
+  android-builder:
+    build:
+      context: .
+      dockerfile: Dockerfile.android
+    container_name: tor-android-builder
+    volumes:
+      # Mount output directory to persist build artifacts
+      # Build script creates android-arch subdirectories (e.g., output/android-arm64/)
+      - ./output:/output
+      # Optional: mount build cache to speed up rebuilds
+      - android-build-cache:/build
+    environment:
+      # Build and output directories (android-arch is appended automatically)
+      - BUILD_DIR=/build
+      - OUTPUT_DIR=/output
+      # Target architecture: arm64 (default), arm, x86, or x86_64
+      # Set via: ARCH=arm64 docker-compose up android-builder
+      - ARCH=${ARCH:-arm64}
+      # Android API level (default: 21)
+      - ANDROID_API=${ANDROID_API:-21}
+      - ANDROID_NDK_HOME=/opt/android-ndk
+
 volumes:
   # Named volume for build cache (optional)
   tor-build-cache:
+    driver: local
+  android-build-cache:
     driver: local

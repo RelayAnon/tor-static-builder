@@ -1,8 +1,9 @@
 # Tor Static Builder Makefile
 # Builds statically linked Tor libraries for embedding in Go binaries
 
-.PHONY: all help build build-docker build-local clean test test-examples \
-        test-basic test-onion rebuild-tor fix-tor install-deps
+.PHONY: all help build build-docker build-local build-android build-android-docker \
+        clean test test-examples test-basic test-onion rebuild-tor fix-tor install-deps \
+        shell shell-android sizes info check
 
 # Default build directory (can be overridden)
 BUILD_DIR ?= $(HOME)/tor-build
@@ -11,12 +12,16 @@ OUTPUT_DIR ?= $(PWD)/output
 help:
 	@echo "Tor Static Builder - Available commands:"
 	@echo ""
-	@echo "Building Tor:"
+	@echo "Building Tor (Linux):"
 	@echo "  make all          - Build everything (libs + test examples)"
 	@echo "  make build        - Build Tor static libraries (local system)"
 	@echo "  make build-docker - Build Tor static libraries (Docker)"
 	@echo "  make rebuild-tor  - Rebuild only Tor (after dependency build)"
 	@echo "  make fix-tor      - Fix Tor build issues (systemd conflicts)"
+	@echo ""
+	@echo "Building Tor (Android):"
+	@echo "  make build-android        - Build Android libraries (local, requires NDK)"
+	@echo "  make build-android-docker - Build Android libraries (Docker)"
 	@echo ""
 	@echo "Testing:"
 	@echo "  make test         - Build and test Go examples"
@@ -32,8 +37,10 @@ help:
 	@echo "  make install-deps - Install required system dependencies"
 	@echo ""
 	@echo "Docker (optional):"
-	@echo "  make build-docker - Build using Docker container"
-	@echo "  make shell        - Start interactive Docker shell"
+	@echo "  make build-docker         - Build Linux libs using Docker"
+	@echo "  make build-android-docker - Build Android libs using Docker"
+	@echo "  make shell                - Start interactive Docker shell (Linux)"
+	@echo "  make shell-android        - Start interactive Docker shell (Android)"
 
 # Build everything
 all: build test
@@ -57,6 +64,27 @@ build-docker:
 	@docker-compose up --build
 	@echo "Build complete! Check ./output/ for results"
 	@$(MAKE) check
+
+# Build Android libraries on local system
+build-android:
+	@echo "Building Tor static libraries for Android..."
+	@if [ -z "$$ANDROID_NDK_HOME" ] && [ ! -d "$$HOME/Android/Sdk/ndk" ]; then \
+		echo "Error: Android NDK not found!"; \
+		echo "Please set ANDROID_NDK_HOME or install NDK to ~/Android/Sdk/ndk/"; \
+		exit 1; \
+	fi
+	@echo "Using BUILD_DIR=$(BUILD_DIR)"
+	@echo "Using OUTPUT_DIR=$(OUTPUT_DIR)"
+	@export BUILD_DIR="$(BUILD_DIR)" && \
+	export OUTPUT_DIR="$(OUTPUT_DIR)" && \
+	./build-tor-android.sh
+	@echo "Android build complete! Check ./output/android-* for results"
+
+# Build Android libraries using Docker (includes NDK)
+build-android-docker:
+	@echo "Building Tor static libraries for Android using Docker..."
+	@docker-compose up --build android-builder
+	@echo "Android build complete! Check ./output/android-* for results"
 
 # Install required build tools (Ubuntu/Debian)
 # Note: Only build tools needed - all libraries are built from source!
@@ -190,6 +218,11 @@ clean-build:
 shell:
 	@echo "Starting interactive shell in build container..."
 	@docker-compose run --rm tor-builder /bin/bash
+
+# Interactive shell in Android Docker container
+shell-android:
+	@echo "Starting interactive shell in Android build container..."
+	@docker-compose run --rm android-builder /bin/bash
 
 # Show library sizes
 sizes: check
