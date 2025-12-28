@@ -2,8 +2,9 @@
 # Builds statically linked Tor libraries for embedding in Go binaries
 
 .PHONY: all help build build-docker build-local build-android build-android-docker \
+        build-windows build-windows-docker \
         clean test test-examples test-basic test-onion rebuild-tor fix-tor install-deps \
-        shell shell-android sizes info check
+        shell shell-android shell-windows sizes info check
 
 # Default build directory (can be overridden)
 BUILD_DIR ?= $(HOME)/tor-build
@@ -23,6 +24,10 @@ help:
 	@echo "  make build-android        - Build Android libraries (local, requires NDK)"
 	@echo "  make build-android-docker - Build Android libraries (Docker)"
 	@echo ""
+	@echo "Building Tor (Windows):"
+	@echo "  make build-windows        - Cross-compile Windows libraries (requires mingw-w64)"
+	@echo "  make build-windows-docker - Cross-compile Windows libraries (Docker)"
+	@echo ""
 	@echo "Testing:"
 	@echo "  make test         - Build and test Go examples"
 	@echo "  make test-basic   - Build basic embedded Tor example"
@@ -39,8 +44,10 @@ help:
 	@echo "Docker (optional):"
 	@echo "  make build-docker         - Build Linux libs using Docker"
 	@echo "  make build-android-docker - Build Android libs using Docker"
+	@echo "  make build-windows-docker - Build Windows libs using Docker"
 	@echo "  make shell                - Start interactive Docker shell (Linux)"
 	@echo "  make shell-android        - Start interactive Docker shell (Android)"
+	@echo "  make shell-windows        - Start interactive Docker shell (Windows)"
 
 # Build everything
 all: build test
@@ -85,6 +92,29 @@ build-android-docker:
 	@echo "Building Tor static libraries for Android using Docker..."
 	@docker-compose up --build android-builder
 	@echo "Android build complete! Check ./output/android-* for results"
+
+# Build Windows libraries (cross-compilation from Linux)
+build-windows:
+	@echo "Cross-compiling Tor static libraries for Windows..."
+	@if ! command -v x86_64-w64-mingw32-gcc >/dev/null 2>&1; then \
+		echo "Error: MinGW-w64 cross-compiler not found!"; \
+		echo "Please install mingw-w64:"; \
+		echo "  Ubuntu/Debian: sudo apt-get install mingw-w64"; \
+		echo "  Fedora: sudo dnf install mingw64-gcc mingw64-gcc-c++"; \
+		exit 1; \
+	fi
+	@echo "Using BUILD_DIR=$(BUILD_DIR)"
+	@echo "Using OUTPUT_DIR=$(OUTPUT_DIR)"
+	@export BUILD_DIR="$(BUILD_DIR)" && \
+	export OUTPUT_DIR="$(OUTPUT_DIR)" && \
+	./build-tor-windows.sh
+	@echo "Windows build complete! Check ./output/windows-amd64 for results"
+
+# Build Windows libraries using Docker (cross-compilation)
+build-windows-docker:
+	@echo "Cross-compiling Tor static libraries for Windows using Docker..."
+	@docker-compose up --build windows-builder
+	@echo "Windows build complete! Check ./output/windows-amd64 for results"
 
 # Install required build tools (Ubuntu/Debian)
 # Note: Only build tools needed - all libraries are built from source!
@@ -173,31 +203,28 @@ run-onion: test-onion
 	@echo "Press Ctrl+C to stop"
 	@cd examples/onion-service && ./test-onion
 
-# Check that build outputs exist
+# Check that build outputs exist (detects native architecture)
 check:
 	@echo "Checking build outputs..."
-	@if [ ! -f "$(OUTPUT_DIR)/lib/libtor.a" ]; then \
-		echo "✗ libtor.a not found"; \
+	@ARCH=$$(uname -m | sed 's/x86_64/amd64/' | sed 's/aarch64/arm64/'); \
+	CHECK_DIR="$(OUTPUT_DIR)/$$ARCH"; \
+	echo "Checking $$CHECK_DIR..."; \
+	if [ ! -f "$$CHECK_DIR/lib/libtor.a" ]; then \
+		echo "✗ libtor.a not found in $$CHECK_DIR"; \
 		echo "  Run 'make build' first"; \
 		exit 1; \
-	fi
-	@if [ ! -f "$(OUTPUT_DIR)/include/tor_api.h" ]; then \
+	fi; \
+	if [ ! -f "$$CHECK_DIR/include/tor_api.h" ]; then \
 		echo "✗ tor_api.h not found"; \
-		if [ -f "$(BUILD_DIR)/tor-static/tor/src/feature/api/tor_api.h" ]; then \
-			echo "  Copying from Tor source..."; \
-			mkdir -p $(OUTPUT_DIR)/include; \
-			cp $(BUILD_DIR)/tor-static/tor/src/feature/api/tor_api.h $(OUTPUT_DIR)/include/; \
-		else \
-			echo "  Run 'make build' first"; \
-			exit 1; \
-		fi; \
-	fi
-	@echo "✓ libtor.a: $$(ls -lh $(OUTPUT_DIR)/lib/libtor.a | awk '{print $$5}')"
-	@echo "✓ libssl.a: $$(ls -lh $(OUTPUT_DIR)/lib/libssl.a 2>/dev/null | awk '{print $$5}' || echo 'not found')"
-	@echo "✓ libcrypto.a: $$(ls -lh $(OUTPUT_DIR)/lib/libcrypto.a 2>/dev/null | awk '{print $$5}' || echo 'not found')"
-	@echo "✓ libevent.a: $$(ls -lh $(OUTPUT_DIR)/lib/libevent.a 2>/dev/null | awk '{print $$5}' || echo 'not found')"
-	@echo "✓ libz.a: $$(ls -lh $(OUTPUT_DIR)/lib/libz.a 2>/dev/null | awk '{print $$5}' || echo 'not found')"
-	@echo "✓ libcap.a: $$(ls -lh $(OUTPUT_DIR)/lib/libcap.a 2>/dev/null | awk '{print $$5}' || echo 'not found')"
+		echo "  Run 'make build' first"; \
+		exit 1; \
+	fi; \
+	echo "✓ libtor.a: $$(ls -lh $$CHECK_DIR/lib/libtor.a | awk '{print $$5}')"; \
+	echo "✓ libssl.a: $$(ls -lh $$CHECK_DIR/lib/libssl.a 2>/dev/null | awk '{print $$5}' || echo 'not found')"; \
+	echo "✓ libcrypto.a: $$(ls -lh $$CHECK_DIR/lib/libcrypto.a 2>/dev/null | awk '{print $$5}' || echo 'not found')"; \
+	echo "✓ libevent.a: $$(ls -lh $$CHECK_DIR/lib/libevent.a 2>/dev/null | awk '{print $$5}' || echo 'not found')"; \
+	echo "✓ libz.a: $$(ls -lh $$CHECK_DIR/lib/libz.a 2>/dev/null | awk '{print $$5}' || echo 'not found')"; \
+	echo "✓ libcap.a: $$(ls -lh $$CHECK_DIR/lib/libcap.a 2>/dev/null | awk '{print $$5}' || echo 'not found')"
 
 # Clean everything
 clean: clean-build
@@ -224,12 +251,19 @@ shell-android:
 	@echo "Starting interactive shell in Android build container..."
 	@docker-compose run --rm android-builder /bin/bash
 
+# Interactive shell in Windows Docker container
+shell-windows:
+	@echo "Starting interactive shell in Windows build container..."
+	@docker-compose run --rm windows-builder /bin/bash
+
 # Show library sizes
 sizes: check
-	@echo "Library sizes:"
-	@ls -lh $(OUTPUT_DIR)/lib/*.a | awk '{print $$9 ": " $$5}'
-	@echo ""
-	@echo "Total size: $$(du -sh $(OUTPUT_DIR)/lib | cut -f1)"
+	@ARCH=$$(uname -m | sed 's/x86_64/amd64/' | sed 's/aarch64/arm64/'); \
+	CHECK_DIR="$(OUTPUT_DIR)/$$ARCH"; \
+	echo "Library sizes ($$ARCH):"; \
+	ls -lh $$CHECK_DIR/lib/*.a | awk '{print $$9 ": " $$5}'; \
+	echo ""; \
+	echo "Total size: $$(du -sh $$CHECK_DIR/lib | cut -f1)"
 
 # Quick info about the build
 info:
@@ -237,11 +271,13 @@ info:
 	@echo "  BUILD_DIR:  $(BUILD_DIR)"
 	@echo "  OUTPUT_DIR: $(OUTPUT_DIR)"
 	@echo ""
-	@if [ -f "$(OUTPUT_DIR)/lib/libtor.a" ]; then \
-		echo "Build status: ✓ Complete"; \
+	@ARCH=$$(uname -m | sed 's/x86_64/amd64/' | sed 's/aarch64/arm64/'); \
+	CHECK_DIR="$(OUTPUT_DIR)/$$ARCH"; \
+	if [ -f "$$CHECK_DIR/lib/libtor.a" ]; then \
+		echo "Build status ($$ARCH): ✓ Complete"; \
 		echo ""; \
 		$(MAKE) sizes; \
 	else \
-		echo "Build status: ✗ Not built"; \
+		echo "Build status ($$ARCH): ✗ Not built"; \
 		echo "Run 'make build' to build Tor static libraries"; \
 	fi

@@ -40,9 +40,29 @@ services:
       - ANDROID_API=${ANDROID_API:-21}
       - ANDROID_NDK_HOME=/opt/android-ndk
 
+  windows-builder:
+    build:
+      context: .
+      dockerfile: Dockerfile.windows
+    container_name: tor-windows-builder
+    volumes:
+      # Mount output directory to persist build artifacts
+      # Build script creates windows-arch subdirectories (e.g., output/windows-amd64/)
+      - ./output:/output
+      # Optional: mount build cache to speed up rebuilds
+      - windows-build-cache:/build
+    environment:
+      # Build and output directories (windows-arch is appended automatically)
+      - BUILD_DIR=/build
+      - OUTPUT_DIR=/output
+      # Target architecture: amd64 (only supported architecture for Windows)
+      - ARCH=${ARCH:-amd64}
+
 volumes:
   # Named volume for build cache (optional)
   tor-build-cache:
     driver: local
   android-build-cache:
+    driver: local
+  windows-build-cache:
     driver: local

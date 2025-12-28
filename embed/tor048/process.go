@@ -12,20 +12,38 @@ import (
 )
 
 /*
-// These paths point to architecture-specific output directories.
-// The build system places libraries in output/amd64/ or output/arm64/
-// based on the target architecture.
+// These paths point to platform and architecture-specific output directories.
+// The build system places libraries in output/<platform>-<arch>/ or output/<arch>/
+// based on the target platform and architecture.
 
-// AMD64 / x86_64 architecture
-#cgo amd64 CFLAGS: -I${SRCDIR}/../../output/amd64/include
-#cgo amd64 LDFLAGS: -L${SRCDIR}/../../output/amd64/lib -ltor -levent -lz -lssl -lcrypto -lcap
+// ============================================================================
+// Linux builds (output/amd64/ and output/arm64/)
+// ============================================================================
 
-// ARM64 / aarch64 architecture
-#cgo arm64 CFLAGS: -I${SRCDIR}/../../output/arm64/include
-#cgo arm64 LDFLAGS: -L${SRCDIR}/../../output/arm64/lib -ltor -levent -lz -lssl -lcrypto -lcap
+// Linux AMD64 / x86_64 architecture
+#cgo linux,amd64 CFLAGS: -I${SRCDIR}/../../output/amd64/include
+#cgo linux,amd64 LDFLAGS: -L${SRCDIR}/../../output/amd64/lib -ltor -levent -lz -lssl -lcrypto -lcap
 
-// Platform-specific linker flags
-#cgo windows LDFLAGS: -lws2_32 -lcrypt32 -lgdi32 -liphlpapi -Wl,-Bstatic -lpthread
+// Linux ARM64 / aarch64 architecture
+#cgo linux,arm64 CFLAGS: -I${SRCDIR}/../../output/arm64/include
+#cgo linux,arm64 LDFLAGS: -L${SRCDIR}/../../output/arm64/lib -ltor -levent -lz -lssl -lcrypto -lcap
+
+// ============================================================================
+// Windows builds (output/windows-amd64/)
+// ============================================================================
+
+// Windows AMD64 / x86_64 architecture
+#cgo windows,amd64 CFLAGS: -I${SRCDIR}/../../output/windows-amd64/include
+#cgo windows,amd64 LDFLAGS: -L${SRCDIR}/../../output/windows-amd64/lib -ltor -levent -lz -lssl -lcrypto
+
+// ============================================================================
+// Platform-specific system library flags
+// ============================================================================
+
+// Windows system libraries (Winsock, crypto, etc.)
+#cgo windows LDFLAGS: -lws2_32 -lcrypt32 -lgdi32 -liphlpapi -lole32 -lshlwapi -Wl,-Bstatic -lpthread
+
+// POSIX system libraries (Linux, etc.)
 #cgo !windows LDFLAGS: -lm -lpthread -ldl -static-libgcc
 
 #include <stdlib.h>

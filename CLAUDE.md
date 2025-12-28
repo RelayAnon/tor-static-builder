@@ -15,8 +15,9 @@ The key innovation is that all dependencies (OpenSSL, libevent, zlib, libcap) ar
 ### Build System
 - **build-tor-static.sh**: Main build script that orchestrates building Tor and all dependencies for Linux
 - **build-tor-android.sh**: Android-specific build script using Android NDK toolchain
+- **build-tor-windows.sh**: Windows-specific build script using MinGW-w64 cross-compiler
 - **Makefile**: Provides convenient commands for building, testing, and managing the project
-- **Architecture Support**: Builds are architecture-specific (amd64/arm64 for Linux; arm64/arm/x86/x86_64 for Android), with outputs in `output/<arch>/` or `output/android-<arch>/`
+- **Architecture Support**: Builds are architecture-specific (amd64/arm64 for Linux; arm64/arm/x86/x86_64 for Android; amd64 for Windows), with outputs in `output/<arch>/`, `output/android-<arch>/`, or `output/windows-<arch>/`
 - **Cross-compilation**: Supports cross-compiling for different architectures using `--arch` flag
 
 ### Go Module Structure
@@ -27,18 +28,22 @@ The key innovation is that all dependencies (OpenSSL, libevent, zlib, libcap) ar
 The CGO layer uses the `bine` library's process interfaces to wrap statically-linked Tor 0.4.8.x.
 
 ### Critical CGO Configuration
-The `embed/tor048/process.go` file contains architecture-specific CGO directives:
+The `embed/tor048/process.go` file contains platform and architecture-specific CGO directives:
 ```go
-// AMD64 / x86_64 architecture
-#cgo amd64 CFLAGS: -I${SRCDIR}/../../output/amd64/include
-#cgo amd64 LDFLAGS: -L${SRCDIR}/../../output/amd64/lib -ltor -levent -lz -lssl -lcrypto -lcap
+// Linux AMD64 / x86_64 architecture
+#cgo linux,amd64 CFLAGS: -I${SRCDIR}/../../output/amd64/include
+#cgo linux,amd64 LDFLAGS: -L${SRCDIR}/../../output/amd64/lib -ltor -levent -lz -lssl -lcrypto -lcap
 
-// ARM64 / aarch64 architecture
-#cgo arm64 CFLAGS: -I${SRCDIR}/../../output/arm64/include
-#cgo arm64 LDFLAGS: -L${SRCDIR}/../../output/arm64/lib -ltor -levent -lz -lssl -lcrypto -lcap
+// Linux ARM64 / aarch64 architecture
+#cgo linux,arm64 CFLAGS: -I${SRCDIR}/../../output/arm64/include
+#cgo linux,arm64 LDFLAGS: -L${SRCDIR}/../../output/arm64/lib -ltor -levent -lz -lssl -lcrypto -lcap
+
+// Windows AMD64 / x86_64 architecture
+#cgo windows,amd64 CFLAGS: -I${SRCDIR}/../../output/windows-amd64/include
+#cgo windows,amd64 LDFLAGS: -L${SRCDIR}/../../output/windows-amd64/lib -ltor -levent -lz -lssl -lcrypto
 ```
 
-These paths use Go's build tags to automatically select the correct architecture-specific libraries during compilation.
+These paths use Go's build tags to automatically select the correct platform and architecture-specific libraries during compilation.
 
 ## Common Commands
 
@@ -77,6 +82,34 @@ ARCH=arm ANDROID_API=23 docker-compose up --build android-builder
 # Interactive Android build shell (for debugging)
 make shell-android
 ```
+
+### Building Tor Libraries (Windows)
+```bash
+# Build for Windows using Makefile (simplest)
+make build-windows                              # Non-Docker build (requires mingw-w64)
+make build-windows-docker                       # Docker build (no mingw-w64 needed!)
+
+# Build for Windows directly with script (requires MinGW-w64)
+./build-tor-windows.sh                          # Default: amd64
+./build-tor-windows.sh --arch amd64             # Explicit amd64
+
+# Build for Windows using docker-compose directly
+docker-compose up --build windows-builder
+
+# Interactive Windows build shell (for debugging)
+make shell-windows
+```
+
+**Windows Build Requirements:**
+- **Docker builds:** No requirements - MinGW-w64 included in Docker image
+- **Non-Docker builds:** MinGW-w64 must be installed (`sudo apt-get install mingw-w64` on Ubuntu/Debian)
+- All standard Linux build tools (gcc, make, autotools, etc.)
+
+**Supported Windows versions:** Windows 10 and 11 (amd64 only)
+
+**Output locations:**
+- Non-Docker builds: `./output/windows-amd64/` (build cache in `~/tor-build/windows-amd64/`)
+- Docker builds: `./output/windows-amd64/` (build cache in Docker volume)
 
 **Android Build Requirements:**
 - **Docker builds:** No requirements - NDK included in Docker image
@@ -144,6 +177,17 @@ output/
 
 Android build artifacts are placed in `~/tor-build/android-<arch>/` by default.
 
+### Windows Builds
+```
+output/
+└── windows-amd64/      # Windows x86_64 build outputs
+    ├── lib/            # Static libraries (libtor.a, libssl.a, etc., NO libcap)
+    ├── include/        # tor_api.h header
+    └── build-info.txt  # Build metadata
+```
+
+Windows build artifacts are placed in `~/tor-build/windows-amd64/` by default.
+
 ## Important Implementation Details
 
 ### Architecture-Specific Build Paths
@@ -158,6 +202,12 @@ Android build artifacts are placed in `~/tor-build/android-<arch>/` by default.
 - **Output**: `./output/android-<arch>/` (e.g., `./output/android-arm64/`)
 - **Docker builds**: `/build/android-<arch>/` and `/output/android-<arch>/`
 - Supported architectures: arm64, arm, x86, x86_64
+
+**Windows builds** (build-tor-windows.sh):
+- **Non-Docker builds**: `~/tor-build/windows-amd64/`
+- **Output**: `./output/windows-amd64/`
+- **Docker builds**: `/build/windows-amd64/` and `/output/windows-amd64/`
+- Supported architectures: amd64 (Windows 10/11 only)
 
 ### Static Library Combination
 The build process combines all Tor component libraries into a single `libtor.a`:
@@ -270,6 +320,61 @@ The script configures Tor with Android-specific options:
 - `--host=$TARGET_TRIPLE`: Sets the target platform correctly
 - Uses NDK's llvm-ar and llvm-ranlib instead of GNU ar/ranlib
 
+## Windows-Specific Details
+
+### Windows Build Script (build-tor-windows.sh)
+The Windows build script is a specialized version that:
+- Uses the MinGW-w64 cross-compiler toolchain instead of native gcc
+- Cross-compiles from Linux to Windows (no native Windows build)
+- Builds for Windows amd64 architecture (Windows 10/11)
+- Does NOT build libcap (Windows doesn't use Linux capabilities)
+- Produces static libraries (.a files) compatible with Go's CGO on Windows
+- **Can run in Docker** via `make build-windows-docker` or `docker-compose up windows-builder` (no local MinGW needed)
+
+### Key Differences from Linux Builds
+1. **No libcap**: Windows builds exclude libcap library
+2. **MinGW toolchain**: Uses MinGW-w64's gcc/g++ instead of system gcc
+3. **Windows-specific flags**: Uses `mingw64` OpenSSL target
+4. **Output directories**: Uses `output/windows-<arch>/` instead of `output/<arch>/`
+5. **Additional linker flags**: Windows builds need `-lws2_32 -lcrypt32 -lgdi32 -liphlpapi -lole32 -lshlwapi` instead of `-lm -lpthread -ldl`
+
+### MinGW-w64 Detection
+**For non-Docker builds**, the script requires MinGW-w64 to be installed:
+- Ubuntu/Debian: `sudo apt-get install mingw-w64`
+- Fedora: `sudo dnf install mingw64-gcc mingw64-gcc-c++`
+- Arch: `sudo pacman -S mingw-w64-gcc`
+
+**For Docker builds**, MinGW-w64 is pre-installed in the Docker image.
+
+### Using Windows Libraries
+To use the Windows libraries in a Go project on Windows:
+
+```bash
+# Build libraries (from Linux)
+./build-tor-windows.sh --arch amd64
+
+# Copy output/windows-amd64/ to your Windows machine
+# The CGO directives in process.go automatically use the correct paths
+# when GOOS=windows GOARCH=amd64
+```
+
+**Cross-compiling from Linux to Windows:**
+```bash
+# Build the Go application for Windows from Linux
+GOOS=windows GOARCH=amd64 CGO_ENABLED=1 CC=x86_64-w64-mingw32-gcc \
+  go build -o myapp.exe ./cmd/myapp
+```
+
+**Important:** Note that Windows uses `-lws2_32 -lcrypt32 -lgdi32 -liphlpapi -lole32 -lshlwapi` for system libraries and doesn't need `-lcap` or `-ldl`.
+
+### Windows Build Configuration
+The script configures Tor with Windows-specific options:
+- `--disable-seccomp`: Windows doesn't support seccomp
+- `--disable-libscrypt`: Avoid scrypt dependency issues on Windows
+- `--disable-tool-name-check`: Allows cross-compilation
+- `--host=x86_64-w64-mingw32`: Sets the target platform correctly
+- Uses MinGW's ar/ranlib tools
+
 ## Build Time Expectations
 
 - **Initial build**: 15-20 minutes (downloads all sources)
@@ -292,8 +397,9 @@ When making changes:
 - gcc, g++, make
 - automake, autoconf, libtool
 - pkg-config, git, wget
-- For cross-compilation: gcc-aarch64-linux-gnu, g++-aarch64-linux-gnu
+- For ARM64 cross-compilation: gcc-aarch64-linux-gnu, g++-aarch64-linux-gnu
 - **For Android builds**: Android NDK (r21 or later)
+- **For Windows builds**: MinGW-w64 (mingw-w64 package on Ubuntu/Debian)
 
 ### Go Dependencies
 - Go 1.19+

@@ -1,0 +1,45 @@
+# Dockerfile for cross-compiling static Tor libraries for Windows
+# Uses MinGW-w64 cross-compiler toolchain
+FROM ubuntu:22.04
+
+# Prevent interactive prompts during package installation
+ENV DEBIAN_FRONTEND=noninteractive
+
+# Install build dependencies including MinGW-w64 cross-compiler
+RUN apt-get update && apt-get install -y \
+    build-essential \
+    automake \
+    autoconf \
+    libtool \
+    pkg-config \
+    git \
+    wget \
+    curl \
+    python3 \
+    python3-dev \
+    ca-certificates \
+    # MinGW-w64 cross-compilation tools for Windows
+    mingw-w64 \
+    && rm -rf /var/lib/apt/lists/*
+
+# Set working directory
+WORKDIR /build
+
+# Copy build script
+COPY build-tor-windows.sh /build/
+
+# Make script executable
+RUN chmod +x /build/build-tor-windows.sh
+
+# Set environment variables for build
+# Note: The build script will append /windows-$ARCH to these paths automatically
+# (e.g., /build/windows-amd64)
+ENV BUILD_DIR=/build
+ENV OUTPUT_DIR=/output
+ENV ARCH=amd64
+
+# Create output directory
+RUN mkdir -p /output
+
+# Default command runs the build script
+CMD ["/build/build-tor-windows.sh"]

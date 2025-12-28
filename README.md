@@ -192,6 +192,14 @@ Note: `${SRCDIR}` in the CGO directives is automatically set by Go to the direct
 CGO_ENABLED=1 go build -ldflags "-linkmode external -extldflags '-static'" -o myapp .
 ```
 
+## Supported Platforms
+
+| Platform | Architectures | Build Script | Docker Support |
+|----------|--------------|--------------|----------------|
+| Linux | amd64, arm64 | `build-tor-static.sh` | Yes |
+| Android | arm64, arm, x86, x86_64 | `build-tor-android.sh` | Yes |
+| Windows | amd64 | `build-tor-windows.sh` | Yes |
+
 ## Building for Android
 
 A specialized build script is provided for building Tor libraries for Android devices and gomobile applications:
@@ -270,6 +278,86 @@ output/
 
 **Note:** Android builds do NOT include `libcap` as Android does not use Linux capabilities in the same way.
 
+## Building for Windows
+
+A specialized build script is provided for cross-compiling Tor libraries for Windows 10/11 (amd64 only):
+
+```bash
+# Build for Windows using Makefile (simplest)
+make build-windows                    # Non-Docker build (requires mingw-w64)
+make build-windows-docker             # Docker build (no mingw-w64 needed!)
+
+# Build for Windows directly with script
+./build-tor-windows.sh                # Default: amd64
+./build-tor-windows.sh --arch amd64   # Explicit amd64
+
+# Using docker-compose
+docker-compose up --build windows-builder
+
+# Interactive shell for debugging
+make shell-windows
+```
+
+### Docker Build for Windows (Easiest Method)
+
+The easiest way to build for Windows is using Docker, which includes MinGW-w64:
+
+```bash
+# Build for Windows using Docker (recommended)
+make build-windows-docker
+
+# Or using docker-compose directly
+docker-compose up --build windows-builder
+```
+
+**No local MinGW-w64 installation required when using Docker!**
+
+### Windows Build Requirements
+
+**For Docker builds:** No requirements! Docker image includes everything.
+
+**For non-Docker builds:** The script requires MinGW-w64 to be installed:
+
+```bash
+# Ubuntu/Debian
+sudo apt-get install mingw-w64
+
+# Fedora
+sudo dnf install mingw64-gcc mingw64-gcc-c++
+
+# Arch
+sudo pacman -S mingw-w64-gcc
+```
+
+### Windows Output Structure
+
+```
+output/
+└── windows-amd64/         # Windows x86_64 build
+    ├── lib/
+    │   ├── libtor.a       # Combined Tor static library
+    │   ├── libssl.a       # OpenSSL SSL
+    │   ├── libcrypto.a    # OpenSSL Crypto
+    │   ├── libevent.a     # Libevent
+    │   └── libz.a         # Zlib (no libcap for Windows)
+    ├── include/
+    │   └── tor_api.h
+    └── build-info.txt
+```
+
+**Note:** Windows builds do NOT include `libcap` as Windows does not use Linux capabilities.
+
+### Cross-compiling Go Applications for Windows
+
+```bash
+# Build Tor libraries for Windows first
+make build-windows
+
+# Cross-compile your Go application from Linux to Windows
+GOOS=windows GOARCH=amd64 CGO_ENABLED=1 CC=x86_64-w64-mingw32-gcc \
+  go build -o myapp.exe ./cmd/myapp
+```
+
 ### Using Android Libraries with gomobile
 
 ```bash
@@ -301,6 +389,11 @@ gomobile bind -target=android/arm64 ...
 - All standard build tools (same as non-Docker build)
 - ~2GB disk space
 - NDK installed in standard location or ANDROID_NDK_HOME set
+
+### For Windows Build (Non-Docker)
+- MinGW-w64 cross-compiler (`mingw-w64` package on Ubuntu/Debian)
+- All standard build tools (same as non-Docker build)
+- ~2GB disk space
 
 ## Build Time
 

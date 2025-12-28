@@ -136,8 +136,13 @@ log_error() {
 }
 
 # Build directories
-BUILD_DIR="${BUILD_DIR:-$HOME/tor-build/android-$ANDROID_ARCH}"
-OUTPUT_DIR="${OUTPUT_DIR:-$(pwd)/output/android-$ANDROID_ARCH}"
+BUILD_DIR="${BUILD_DIR:-$HOME/tor-build}"
+OUTPUT_DIR="${OUTPUT_DIR:-$(pwd)/output}"
+
+# Always append android-arch to paths
+BUILD_DIR="$BUILD_DIR/android-$ANDROID_ARCH"
+OUTPUT_DIR="$OUTPUT_DIR/android-$ANDROID_ARCH"
+
 TOR_STATIC_REPO="https://github.com/cretz/tor-static.git"
 
 log_info "Build directory: $BUILD_DIR"

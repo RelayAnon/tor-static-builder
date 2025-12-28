@@ -112,13 +112,18 @@ log_error() {
 # Detect if running in Docker container
 if [ -f /.dockerenv ]; then
     # Running in Docker
-    BUILD_DIR="${BUILD_DIR:-/build/$ARCH}"
-    OUTPUT_DIR="${OUTPUT_DIR:-/output/$ARCH}"
+    BUILD_DIR="${BUILD_DIR:-/build}"
+    OUTPUT_DIR="${OUTPUT_DIR:-/output}"
 else
     # Running on host system
-    BUILD_DIR="${BUILD_DIR:-$HOME/tor-build/$ARCH}"
-    OUTPUT_DIR="${OUTPUT_DIR:-$(pwd)/output/$ARCH}"
+    BUILD_DIR="${BUILD_DIR:-$HOME/tor-build}"
+    OUTPUT_DIR="${OUTPUT_DIR:-$(pwd)/output}"
 fi
+
+# Always append architecture to paths
+BUILD_DIR="$BUILD_DIR/$ARCH"
+OUTPUT_DIR="$OUTPUT_DIR/$ARCH"
+
 TOR_STATIC_REPO="https://github.com/cretz/tor-static.git"
 LIBCAP_VERSION="2.69"
 LIBCAP_URL="https://git.kernel.org/pub/scm/libs/libcap/libcap.git/snapshot/libcap-${LIBCAP_VERSION}.tar.gz"
