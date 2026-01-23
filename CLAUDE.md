@@ -16,9 +16,10 @@ The key innovation is that all dependencies (OpenSSL, libevent, zlib, libcap) ar
 - **build-tor-static.sh**: Main build script that orchestrates building Tor and all dependencies for Linux
 - **build-tor-android.sh**: Android-specific build script using Android NDK toolchain
 - **build-tor-windows.sh**: Windows-specific build script using MinGW-w64 cross-compiler
+- **build-tor-macos.sh**: macOS-specific build script (native builds only, no cross-compilation)
 - **Makefile**: Provides convenient commands for building, testing, and managing the project
-- **Architecture Support**: Builds are architecture-specific (amd64/arm64 for Linux; arm64/arm/x86/x86_64 for Android; amd64 for Windows), with outputs in `output/<arch>/`, `output/android-<arch>/`, or `output/windows-<arch>/`
-- **Cross-compilation**: Supports cross-compiling for different architectures using `--arch` flag
+- **Architecture Support**: Builds are architecture-specific (amd64/arm64 for Linux; arm64/arm/x86/x86_64 for Android; amd64 for Windows; amd64/arm64 for macOS), with outputs in `output/<arch>/`, `output/android-<arch>/`, `output/windows-<arch>/`, or `output/darwin-<arch>/`
+- **Cross-compilation**: Supports cross-compiling for different architectures using `--arch` flag (except macOS which requires native builds)
 
 ### Go Module Structure
 - **embed/embed.go**: High-level Go API for embedded Tor (QuickStart, StartTor, StopTor, etc.)
@@ -41,9 +42,17 @@ The `embed/tor048/process.go` file contains platform and architecture-specific C
 // Windows AMD64 / x86_64 architecture
 #cgo windows,amd64 CFLAGS: -I${SRCDIR}/../../output/windows-amd64/include
 #cgo windows,amd64 LDFLAGS: -L${SRCDIR}/../../output/windows-amd64/lib -ltor -levent -lz -lssl -lcrypto
+
+// macOS AMD64 / x86_64 architecture
+#cgo darwin,amd64 CFLAGS: -I${SRCDIR}/../../output/darwin-amd64/include
+#cgo darwin,amd64 LDFLAGS: -L${SRCDIR}/../../output/darwin-amd64/lib -ltor -levent -lz -lssl -lcrypto
+
+// macOS ARM64 / Apple Silicon architecture
+#cgo darwin,arm64 CFLAGS: -I${SRCDIR}/../../output/darwin-arm64/include
+#cgo darwin,arm64 LDFLAGS: -L${SRCDIR}/../../output/darwin-arm64/lib -ltor -levent -lz -lssl -lcrypto
 ```
 
-These paths use Go's build tags to automatically select the correct platform and architecture-specific libraries during compilation.
+These paths use Go's build tags to automatically select the correct platform and architecture-specific libraries during compilation. Note that macOS and Windows do not include `-lcap` as they don't use Linux capabilities.
 
 ## Common Commands
 
@@ -99,6 +108,29 @@ docker-compose up --build windows-builder
 # Interactive Windows build shell (for debugging)
 make shell-windows
 ```
+
+### Building Tor Libraries (macOS)
+```bash
+# Build for macOS using Makefile (simplest)
+make build-macos                                # Native build only (requires macOS)
+
+# Build for macOS directly with script
+./build-tor-macos.sh                            # Default: native architecture
+./build-tor-macos.sh --arch arm64               # ARM64 (Apple Silicon)
+./build-tor-macos.sh --arch amd64               # x86_64 (Intel Macs)
+```
+
+**macOS Build Requirements:**
+- Must be running on macOS (no cross-compilation support)
+- Homebrew with: `brew install automake autoconf libtool`
+- Add libtool to PATH: `export PATH="/opt/homebrew/opt/libtool/libexec/gnubin:$PATH"`
+- Xcode Command Line Tools: `xcode-select --install`
+
+**Note:** macOS does not support fully static binaries. The build uses `make -k || true` to continue past executable linking errors since we only need the static library files (.a).
+
+**Output locations:**
+- `./output/darwin-arm64/` (Apple Silicon)
+- `./output/darwin-amd64/` (Intel Macs)
 
 **Windows Build Requirements:**
 - **Docker builds:** No requirements - MinGW-w64 included in Docker image
@@ -188,6 +220,19 @@ output/
 
 Windows build artifacts are placed in `~/tor-build/windows-amd64/` by default.
 
+### macOS Builds
+```
+output/
+├── darwin-arm64/       # macOS Apple Silicon build outputs
+│   ├── lib/            # Static libraries (libtor.a, libssl.a, etc., NO libcap)
+│   ├── include/        # tor_api.h header
+│   └── build-info.txt  # Build metadata
+└── darwin-amd64/       # macOS Intel build outputs (if built)
+    └── ... (same structure)
+```
+
+macOS build artifacts are placed in `~/tor-build/darwin-<arch>/` by default.
+
 ## Important Implementation Details
 
 ### Architecture-Specific Build Paths
@@ -208,6 +253,12 @@ Windows build artifacts are placed in `~/tor-build/windows-amd64/` by default.
 - **Output**: `./output/windows-amd64/`
 - **Docker builds**: `/build/windows-amd64/` and `/output/windows-amd64/`
 - Supported architectures: amd64 (Windows 10/11 only)
+
+**macOS builds** (build-tor-macos.sh):
+- **Native builds only**: `~/tor-build/darwin-<arch>/` (e.g., `~/tor-build/darwin-arm64/`)
+- **Output**: `./output/darwin-<arch>/` (e.g., `./output/darwin-arm64/`)
+- **No Docker support**: macOS builds must run natively on macOS
+- Supported architectures: arm64 (Apple Silicon), amd64 (Intel Macs)
 
 ### Static Library Combination
 The build process combines all Tor component libraries into a single `libtor.a`:
@@ -375,6 +426,57 @@ The script configures Tor with Windows-specific options:
 - `--host=x86_64-w64-mingw32`: Sets the target platform correctly
 - Uses MinGW's ar/ranlib tools
 
+## macOS-Specific Details
+
+### macOS Build Script (build-tor-macos.sh)
+The macOS build script is a specialized version that:
+- Builds natively on macOS (no cross-compilation or Docker support)
+- Uses Darwin-specific OpenSSL targets (`darwin64-arm64-cc` or `darwin64-x86_64-cc`)
+- Does NOT build libcap (macOS doesn't use Linux capabilities)
+- Uses `make -k || true` to continue past executable linking errors (macOS doesn't support fully static binaries)
+- Only the static library files (.a) are needed; executable linking failures are expected
+- Produces libraries suitable for CGO embedding in Go applications
+
+### Key Differences from Linux Builds
+1. **No libcap**: macOS builds exclude libcap library
+2. **No libdl**: macOS doesn't need `-ldl` linker flag
+3. **No static binaries**: macOS doesn't support fully static executables
+4. **Native builds only**: Must run on macOS, no Docker/cross-compilation support
+5. **Output directories**: Uses `output/darwin-<arch>/` instead of `output/<arch>/`
+6. **Linker flags**: macOS uses `-lm -lpthread` instead of `-lm -lpthread -ldl -static-libgcc`
+
+### Prerequisites for macOS Builds
+The script checks for required dependencies and provides helpful error messages:
+```bash
+# Install required build tools
+brew install automake autoconf libtool
+
+# Add libtool to PATH (required because Homebrew prefixes commands with 'g')
+export PATH="/opt/homebrew/opt/libtool/libexec/gnubin:$PATH"
+
+# Ensure Xcode Command Line Tools are installed
+xcode-select --install
+```
+
+### macOS Build Configuration
+The script configures Tor with macOS-specific options:
+- `--disable-seccomp`: macOS doesn't support seccomp
+- `--disable-zstd --disable-lzma`: Disables optional compression
+- `--disable-module-relay --disable-module-dirauth`: Client-only mode
+- Does not use `--enable-static-tor` (macOS doesn't support fully static binaries)
+
+### Using macOS Libraries in Go Projects
+```go
+// In your CGO directives:
+#cgo darwin,arm64 CFLAGS: -I/path/to/output/darwin-arm64/include
+#cgo darwin,arm64 LDFLAGS: -L/path/to/output/darwin-arm64/lib -ltor -levent -lz -lssl -lcrypto -lm -lpthread
+
+#cgo darwin,amd64 CFLAGS: -I/path/to/output/darwin-amd64/include
+#cgo darwin,amd64 LDFLAGS: -L/path/to/output/darwin-amd64/lib -ltor -levent -lz -lssl -lcrypto -lm -lpthread
+```
+
+**Important:** Note that macOS uses only `-lm -lpthread` for system libraries and doesn't need `-lcap`, `-ldl`, or `-static-libgcc`.
+
 ## Build Time Expectations
 
 - **Initial build**: 15-20 minutes (downloads all sources)
@@ -400,6 +502,7 @@ When making changes:
 - For ARM64 cross-compilation: gcc-aarch64-linux-gnu, g++-aarch64-linux-gnu
 - **For Android builds**: Android NDK (r21 or later)
 - **For Windows builds**: MinGW-w64 (mingw-w64 package on Ubuntu/Debian)
+- **For macOS builds**: Homebrew with automake, autoconf, libtool; Xcode Command Line Tools
 
 ### Go Dependencies
 - Go 1.19+

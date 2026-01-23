@@ -2,7 +2,7 @@
 # Builds statically linked Tor libraries for embedding in Go binaries
 
 .PHONY: all help build build-docker build-local build-android build-android-docker \
-        build-windows build-windows-docker \
+        build-windows build-windows-docker build-macos \
         clean test test-examples test-basic test-onion rebuild-tor fix-tor install-deps \
         shell shell-android shell-windows sizes info check
 
@@ -27,6 +27,9 @@ help:
 	@echo "Building Tor (Windows):"
 	@echo "  make build-windows        - Cross-compile Windows libraries (requires mingw-w64)"
 	@echo "  make build-windows-docker - Cross-compile Windows libraries (Docker)"
+	@echo ""
+	@echo "Building Tor (macOS):"
+	@echo "  make build-macos          - Build macOS libraries (native, requires macOS)"
 	@echo ""
 	@echo "Testing:"
 	@echo "  make test         - Build and test Go examples"
@@ -116,6 +119,20 @@ build-windows-docker:
 	@docker-compose up --build windows-builder
 	@echo "Windows build complete! Check ./output/windows-amd64 for results"
 
+# Build macOS libraries (native only, requires macOS)
+build-macos:
+	@if [ "$$(uname)" != "Darwin" ]; then \
+		echo "Error: macOS build requires running on macOS"; \
+		exit 1; \
+	fi
+	@echo "Building Tor static libraries for macOS..."
+	@echo "Using BUILD_DIR=$(BUILD_DIR)"
+	@echo "Using OUTPUT_DIR=$(OUTPUT_DIR)"
+	@export BUILD_DIR="$(BUILD_DIR)" && \
+	export OUTPUT_DIR="$(OUTPUT_DIR)" && \
+	./build-tor-macos.sh
+	@echo "macOS build complete! Check ./output/darwin-* for results"
+
 # Install required build tools (Ubuntu/Debian)
 # Note: Only build tools needed - all libraries are built from source!
 install-deps:
@@ -203,20 +220,25 @@ run-onion: test-onion
 	@echo "Press Ctrl+C to stop"
 	@cd examples/onion-service && ./test-onion
 
-# Check that build outputs exist (detects native architecture)
+# Check that build outputs exist (detects native architecture and OS)
 check:
 	@echo "Checking build outputs..."
-	@ARCH=$$(uname -m | sed 's/x86_64/amd64/' | sed 's/aarch64/arm64/'); \
-	CHECK_DIR="$(OUTPUT_DIR)/$$ARCH"; \
+	@OS=$$(uname -s); \
+	ARCH=$$(uname -m | sed 's/x86_64/amd64/' | sed 's/aarch64/arm64/'); \
+	if [ "$$OS" = "Darwin" ]; then \
+		CHECK_DIR="$(OUTPUT_DIR)/darwin-$$ARCH"; \
+	else \
+		CHECK_DIR="$(OUTPUT_DIR)/$$ARCH"; \
+	fi; \
 	echo "Checking $$CHECK_DIR..."; \
 	if [ ! -f "$$CHECK_DIR/lib/libtor.a" ]; then \
 		echo "✗ libtor.a not found in $$CHECK_DIR"; \
-		echo "  Run 'make build' first"; \
+		echo "  Run 'make build' or 'make build-macos' first"; \
 		exit 1; \
 	fi; \
 	if [ ! -f "$$CHECK_DIR/include/tor_api.h" ]; then \
 		echo "✗ tor_api.h not found"; \
-		echo "  Run 'make build' first"; \
+		echo "  Run 'make build' or 'make build-macos' first"; \
 		exit 1; \
 	fi; \
 	echo "✓ libtor.a: $$(ls -lh $$CHECK_DIR/lib/libtor.a | awk '{print $$5}')"; \
@@ -224,7 +246,9 @@ check:
 	echo "✓ libcrypto.a: $$(ls -lh $$CHECK_DIR/lib/libcrypto.a 2>/dev/null | awk '{print $$5}' || echo 'not found')"; \
 	echo "✓ libevent.a: $$(ls -lh $$CHECK_DIR/lib/libevent.a 2>/dev/null | awk '{print $$5}' || echo 'not found')"; \
 	echo "✓ libz.a: $$(ls -lh $$CHECK_DIR/lib/libz.a 2>/dev/null | awk '{print $$5}' || echo 'not found')"; \
-	echo "✓ libcap.a: $$(ls -lh $$CHECK_DIR/lib/libcap.a 2>/dev/null | awk '{print $$5}' || echo 'not found')"
+	if [ "$$OS" != "Darwin" ]; then \
+		echo "✓ libcap.a: $$(ls -lh $$CHECK_DIR/lib/libcap.a 2>/dev/null | awk '{print $$5}' || echo 'not found')"; \
+	fi
 
 # Clean everything
 clean: clean-build
@@ -258,9 +282,16 @@ shell-windows:
 
 # Show library sizes
 sizes: check
-	@ARCH=$$(uname -m | sed 's/x86_64/amd64/' | sed 's/aarch64/arm64/'); \
-	CHECK_DIR="$(OUTPUT_DIR)/$$ARCH"; \
-	echo "Library sizes ($$ARCH):"; \
+	@OS=$$(uname -s); \
+	ARCH=$$(uname -m | sed 's/x86_64/amd64/' | sed 's/aarch64/arm64/'); \
+	if [ "$$OS" = "Darwin" ]; then \
+		CHECK_DIR="$(OUTPUT_DIR)/darwin-$$ARCH"; \
+		PLATFORM="darwin-$$ARCH"; \
+	else \
+		CHECK_DIR="$(OUTPUT_DIR)/$$ARCH"; \
+		PLATFORM="$$ARCH"; \
+	fi; \
+	echo "Library sizes ($$PLATFORM):"; \
 	ls -lh $$CHECK_DIR/lib/*.a | awk '{print $$9 ": " $$5}'; \
 	echo ""; \
 	echo "Total size: $$(du -sh $$CHECK_DIR/lib | cut -f1)"
@@ -271,13 +302,24 @@ info:
 	@echo "  BUILD_DIR:  $(BUILD_DIR)"
 	@echo "  OUTPUT_DIR: $(OUTPUT_DIR)"
 	@echo ""
-	@ARCH=$$(uname -m | sed 's/x86_64/amd64/' | sed 's/aarch64/arm64/'); \
-	CHECK_DIR="$(OUTPUT_DIR)/$$ARCH"; \
+	@OS=$$(uname -s); \
+	ARCH=$$(uname -m | sed 's/x86_64/amd64/' | sed 's/aarch64/arm64/'); \
+	if [ "$$OS" = "Darwin" ]; then \
+		CHECK_DIR="$(OUTPUT_DIR)/darwin-$$ARCH"; \
+		PLATFORM="darwin-$$ARCH"; \
+	else \
+		CHECK_DIR="$(OUTPUT_DIR)/$$ARCH"; \
+		PLATFORM="$$ARCH"; \
+	fi; \
 	if [ -f "$$CHECK_DIR/lib/libtor.a" ]; then \
-		echo "Build status ($$ARCH): ✓ Complete"; \
+		echo "Build status ($$PLATFORM): ✓ Complete"; \
 		echo ""; \
 		$(MAKE) sizes; \
 	else \
-		echo "Build status ($$ARCH): ✗ Not built"; \
-		echo "Run 'make build' to build Tor static libraries"; \
+		echo "Build status ($$PLATFORM): ✗ Not built"; \
+		if [ "$$OS" = "Darwin" ]; then \
+			echo "Run 'make build-macos' to build Tor static libraries"; \
+		else \
+			echo "Run 'make build' to build Tor static libraries"; \
+		fi; \
 	fi

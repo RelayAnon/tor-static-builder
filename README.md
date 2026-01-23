@@ -155,31 +155,47 @@ creator := embed.GetProcessCreator()
 
 ```go
 /*
-// For amd64 builds
-#cgo amd64 CFLAGS: -I${SRCDIR}/../../tor-static-builder/output/amd64/include
-#cgo amd64 LDFLAGS: -L${SRCDIR}/../../tor-static-builder/output/amd64/lib -ltor -levent -lz -lssl -lcrypto -lcap
+// For Linux amd64 builds
+#cgo linux,amd64 CFLAGS: -I${SRCDIR}/../../tor-static-builder/output/amd64/include
+#cgo linux,amd64 LDFLAGS: -L${SRCDIR}/../../tor-static-builder/output/amd64/lib -ltor -levent -lz -lssl -lcrypto -lcap
 
-// For arm64 builds
-#cgo arm64 CFLAGS: -I${SRCDIR}/../../tor-static-builder/output/arm64/include
-#cgo arm64 LDFLAGS: -L${SRCDIR}/../../tor-static-builder/output/arm64/lib -ltor -levent -lz -lssl -lcrypto -lcap
+// For Linux arm64 builds
+#cgo linux,arm64 CFLAGS: -I${SRCDIR}/../../tor-static-builder/output/arm64/include
+#cgo linux,arm64 LDFLAGS: -L${SRCDIR}/../../tor-static-builder/output/arm64/lib -ltor -levent -lz -lssl -lcrypto -lcap
 
-// Common linker flags
-#cgo LDFLAGS: -lm -lpthread -ldl -static-libgcc
+// For macOS arm64 builds (Apple Silicon)
+#cgo darwin,arm64 CFLAGS: -I${SRCDIR}/../../tor-static-builder/output/darwin-arm64/include
+#cgo darwin,arm64 LDFLAGS: -L${SRCDIR}/../../tor-static-builder/output/darwin-arm64/lib -ltor -levent -lz -lssl -lcrypto
+
+// For macOS amd64 builds (Intel)
+#cgo darwin,amd64 CFLAGS: -I${SRCDIR}/../../tor-static-builder/output/darwin-amd64/include
+#cgo darwin,amd64 LDFLAGS: -L${SRCDIR}/../../tor-static-builder/output/darwin-amd64/lib -ltor -levent -lz -lssl -lcrypto
+
+// Platform-specific linker flags
+#cgo linux LDFLAGS: -lm -lpthread -ldl -static-libgcc
+#cgo darwin LDFLAGS: -lm -lpthread
 */
 import "C"
 ```
 
-Or if you copy the architecture-specific output directory to your project (e.g., `tor-libs/amd64/`):
+Or if you copy the architecture-specific output directory to your project (e.g., `tor-libs/`):
 
 ```go
 /*
-#cgo amd64 CFLAGS: -I${SRCDIR}/tor-libs/amd64/include
-#cgo amd64 LDFLAGS: -L${SRCDIR}/tor-libs/amd64/lib -ltor -levent -lz -lssl -lcrypto -lcap
+#cgo linux,amd64 CFLAGS: -I${SRCDIR}/tor-libs/amd64/include
+#cgo linux,amd64 LDFLAGS: -L${SRCDIR}/tor-libs/amd64/lib -ltor -levent -lz -lssl -lcrypto -lcap
 
-#cgo arm64 CFLAGS: -I${SRCDIR}/tor-libs/arm64/include
-#cgo arm64 LDFLAGS: -L${SRCDIR}/tor-libs/arm64/lib -ltor -levent -lz -lssl -lcrypto -lcap
+#cgo linux,arm64 CFLAGS: -I${SRCDIR}/tor-libs/arm64/include
+#cgo linux,arm64 LDFLAGS: -L${SRCDIR}/tor-libs/arm64/lib -ltor -levent -lz -lssl -lcrypto -lcap
 
-#cgo LDFLAGS: -lm -lpthread -ldl -static-libgcc
+#cgo darwin,arm64 CFLAGS: -I${SRCDIR}/tor-libs/darwin-arm64/include
+#cgo darwin,arm64 LDFLAGS: -L${SRCDIR}/tor-libs/darwin-arm64/lib -ltor -levent -lz -lssl -lcrypto
+
+#cgo darwin,amd64 CFLAGS: -I${SRCDIR}/tor-libs/darwin-amd64/include
+#cgo darwin,amd64 LDFLAGS: -L${SRCDIR}/tor-libs/darwin-amd64/lib -ltor -levent -lz -lssl -lcrypto
+
+#cgo linux LDFLAGS: -lm -lpthread -ldl -static-libgcc
+#cgo darwin LDFLAGS: -lm -lpthread
 */
 import "C"
 ```
@@ -199,6 +215,7 @@ CGO_ENABLED=1 go build -ldflags "-linkmode external -extldflags '-static'" -o my
 | Linux | amd64, arm64 | `build-tor-static.sh` | Yes |
 | Android | arm64, arm, x86, x86_64 | `build-tor-android.sh` | Yes |
 | Windows | amd64 | `build-tor-windows.sh` | Yes |
+| macOS | arm64, amd64 | `build-tor-macos.sh` | No (native only) |
 
 ## Building for Android
 
@@ -358,7 +375,60 @@ GOOS=windows GOARCH=amd64 CGO_ENABLED=1 CC=x86_64-w64-mingw32-gcc \
   go build -o myapp.exe ./cmd/myapp
 ```
 
-### Using Android Libraries with gomobile
+## Building for macOS
+
+A specialized build script is provided for building Tor libraries on macOS (native builds only):
+
+```bash
+# Build for macOS using Makefile (simplest)
+make build-macos                          # Native build for current architecture
+
+# Build for macOS directly with script
+./build-tor-macos.sh                      # Default: native architecture
+./build-tor-macos.sh --arch arm64         # ARM64 (Apple Silicon)
+./build-tor-macos.sh --arch amd64         # x86_64 (Intel Macs)
+```
+
+### macOS Build Requirements
+
+**Prerequisites:**
+```bash
+# Install required build tools via Homebrew
+brew install automake autoconf libtool
+
+# Add libtool to PATH (Homebrew prefixes commands with 'g')
+export PATH="/opt/homebrew/opt/libtool/libexec/gnubin:$PATH"
+
+# Ensure Xcode Command Line Tools are installed
+xcode-select --install
+```
+
+**Notes:**
+- macOS builds must run natively on macOS (no Docker or cross-compilation support)
+- macOS does not support fully static binaries; the build will show linking errors for executables, but this is expected
+- Only the static library files (.a) are needed for embedding in Go applications
+
+### macOS Output Structure
+
+```
+output/
+├── darwin-arm64/          # macOS Apple Silicon build
+│   ├── lib/
+│   │   ├── libtor.a       # Combined Tor static library
+│   │   ├── libssl.a       # OpenSSL SSL
+│   │   ├── libcrypto.a    # OpenSSL Crypto
+│   │   ├── libevent.a     # Libevent
+│   │   └── libz.a         # Zlib (no libcap for macOS)
+│   ├── include/
+│   │   └── tor_api.h
+│   └── build-info.txt
+└── darwin-amd64/          # macOS Intel (if built)
+    └── ... (same structure)
+```
+
+**Note:** macOS builds do NOT include `libcap` as macOS does not use Linux capabilities.
+
+### Using macOS Libraries with gomobile
 
 ```bash
 # Set CGO flags for Android build
@@ -393,6 +463,12 @@ gomobile bind -target=android/arm64 ...
 ### For Windows Build (Non-Docker)
 - MinGW-w64 cross-compiler (`mingw-w64` package on Ubuntu/Debian)
 - All standard build tools (same as non-Docker build)
+- ~2GB disk space
+
+### For macOS Build
+- macOS (native builds only, no Docker support)
+- Homebrew with: automake, autoconf, libtool
+- Xcode Command Line Tools
 - ~2GB disk space
 
 ## Build Time

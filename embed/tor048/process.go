@@ -37,14 +37,29 @@ import (
 #cgo windows,amd64 LDFLAGS: -L${SRCDIR}/../../output/windows-amd64/lib -ltor -levent -lz -lssl -lcrypto
 
 // ============================================================================
+// macOS builds (output/darwin-amd64/ and output/darwin-arm64/)
+// ============================================================================
+
+// macOS AMD64 / x86_64 architecture
+#cgo darwin,amd64 CFLAGS: -I${SRCDIR}/../../output/darwin-amd64/include
+#cgo darwin,amd64 LDFLAGS: -L${SRCDIR}/../../output/darwin-amd64/lib -ltor -levent -lz -lssl -lcrypto
+
+// macOS ARM64 / Apple Silicon architecture
+#cgo darwin,arm64 CFLAGS: -I${SRCDIR}/../../output/darwin-arm64/include
+#cgo darwin,arm64 LDFLAGS: -L${SRCDIR}/../../output/darwin-arm64/lib -ltor -levent -lz -lssl -lcrypto
+
+// ============================================================================
 // Platform-specific system library flags
 // ============================================================================
 
 // Windows system libraries (Winsock, crypto, etc.)
 #cgo windows LDFLAGS: -lws2_32 -lcrypt32 -lgdi32 -liphlpapi -lole32 -lshlwapi -Wl,-Bstatic -lpthread
 
-// POSIX system libraries (Linux, etc.)
-#cgo !windows LDFLAGS: -lm -lpthread -ldl -static-libgcc
+// macOS system libraries (no libcap, no libdl)
+#cgo darwin LDFLAGS: -lm -lpthread
+
+// Linux system libraries
+#cgo linux LDFLAGS: -lm -lpthread -ldl -static-libgcc
 
 #include <stdlib.h>
 #ifdef _WIN32
